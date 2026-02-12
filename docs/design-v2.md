@@ -1,164 +1,356 @@
-# Make It So — Design V2: Research Agent Architecture
+# Make It So — Design V2: Greedy Lock-In Architecture
 
-> Recording our design discussion (2026-02-12)
+> From intent to product: **Charter. Explore. Engage.**
 
-## Context
+## Evolution
 
-We started with a clean 3-phase model:
-```
-Charter → Explore → Engage (Ralph loop)
-```
-
-But testing against a real project (ADDM — LLM experiment framework) revealed that Phase 1 (Explore) is much harder than "generate a PRD." For research projects, exploration means **running experiments, diagnosing failures, and iterating on the design itself.**
-
-## Key Realizations
-
-### 1. The Charter is a Knowledge Transfer Document
-
-Not a "brief" or "one-liner." It's everything a brilliant new researcher needs to operate autonomously:
-
-```markdown
-# Charter Structure
-
-## I. Thesis (WHY — don't change this)
-The core research contribution. What we're proving and why.
-
-## II. Method (HOW — understand deeply before touching)
-- How the system works end-to-end
-- Each component explained: what it does, why it's designed that way
-- Infrastructure: how experiments run, data pipeline, costs
-
-## III. Current State (WHERE we are)
-- Benchmark results
-- Known strengths and weaknesses
-
-## IV. Mission (WHAT to do)
-The specific goal for this agent run.
-
-## V. Degrees of Freedom (WHAT can change)
-- CANNOT change: foundational architecture, core concepts
-- CAN change (with caution): parameters, thresholds, calibration
-- SHOULD change: things that are known to be domain-specific
-- FREE to change: implementation details, prompts, experiments
-```
-
-Section V is the key innovation — an explicit **permission system** for what the agent can modify. Like constitutional law: fundamental rights need supermajority, regulations can change freely.
-
-### 2. The Charter is the Same Whether Building from Scratch or Extending
-
-For dev-ADDM from scratch: Phase 0 produces a charter with the full thesis, method design, evaluation methodology. The agent builds it.
-
-For dev-ADDM Amazon expansion: Same charter structure, plus "Current State" section with existing results, plus mission = "expand to Amazon."
-
-The charter is **domain knowledge**, not a to-do list.
-
-### 3. Phase 1 Explore Includes Running Code
-
-For a research project:
-```
-Explore iteration 1:
-  → Agent proposes agenda design for Amazon
-  → Builds prototype (implements it)
-  → Runs experiment
-  → AMOS loses to baseline
-  → Diagnoses: "agenda is Yelp-specific, gate calibration wrong"
-
-Explore iteration 2:
-  → Adjusts agenda, recalibrates Tekoa
-  → Runs experiment
-  → AMOS wins on 9/12 topics, Yelp stable ✓
-  → Diagnosis: "3 remaining topics have weak review signal"
-
-Explore iteration 3:
-  → Redesigns agendas for weak topics OR excludes them
-  → Final results: AMOS wins reliably
-  → Blueprint locked
-```
-
-This means Phase 1 already includes building + testing. It IS a loop, possibly using Ralph-style iteration internally.
-
-## Open Questions
-
-### Q1: Do we still need separate Phase 1 and Phase 2?
-
-Phase 1 (Explore) includes building + running code. Phase 2 (Engage/Ralph) also builds code. What's the difference?
-
-**Possible answer:** Phase 1 is **exploratory** — the agent is trying different approaches, running experiments, iterating on design. The code is prototype-quality. Phase 2 is **production** — the agent takes the winning approach and builds it properly with tests, clean architecture, documentation.
-
-```
-Phase 1: "Does this approach work?" (prototype, iterate, validate)
-Phase 2: "Build it properly." (production quality, Ralph loop)
-```
-
-But for some projects, Phase 1's prototype IS the final product (especially research code). In that case, Phase 2 might be unnecessary — or Phase 2 is just "clean up and write tests."
-
-**Or:** Phase 1 and Phase 2 merge. The agent runs a single extended loop that starts exploratory and converges to production quality. The "blueprint" isn't a separate artifact — it emerges from the exploration.
-
-### Q2: What IS Phase 1 concretely?
-
-If there exists a "target blueprint" that would correctly build dev-ADDM or dev-ADDM-Amazon, what process leads to it?
-
-**Possibility A: Plan then build (current model)**
-```
-Charter → Agent generates blueprint → Ralph builds it
-```
-Problem: For research, the agent can't know the right blueprint without experimenting. The blueprint IS the research output.
-
-**Possibility B: Explore = prototype loop, then clean build**
-```
-Charter → Agent prototypes + experiments in a loop → 
-  discovers what works → extracts blueprint → Ralph builds clean version
-```
-This separates "figuring out what to build" from "building it well."
-
-**Possibility C: Single adaptive loop**
-```
-Charter → Agent runs in a loop, starting exploratory,
-  gradually converging to production quality
-```
-No separate phases. The agent is autonomous throughout. The charter constrains it. Early iterations are exploratory (try things, run experiments). Later iterations are refinement (clean up, test, document).
-
-**Possibility D: Research loop with checkpoints**
-```
-Charter → Agent runs explore loop →
-  At each checkpoint, presents findings to human →
-  Human steers ("that direction is good" / "try X instead") →
-  When human says "this works," switch to production build mode
-```
-This keeps human-in-the-loop for strategic decisions but lets agent drive the research.
-
-### Q3: How does the agent diagnose failures?
-
-When AMOS loses to baseline, the failure could be:
-- Agenda design (questions don't discriminate)
-- Ground truth (labels are wrong)
-- AMOS method (gates too aggressive)
-- Tekoa calibration (thresholds off)
-- Data issue (Amazon reviews have different characteristics)
-
-These are **coupled**: changing agenda changes ground truth changes baseline scores.
-
-The charter's "Degrees of Freedom" helps, but the agent also needs:
-- **Diagnostic heuristics**: "if AMOS wins on Yelp but loses on Amazon, suspect domain-specific hardcoding"
-- **Cost awareness**: "ground truth recalculation costs $X, don't change agenda frivolously"
-- **Regression testing**: "always rerun Yelp after changes to confirm no regression"
-
-Should these be in the charter? Or does the agent learn them?
-
-## Summary of Where We Are
-
-### What we've locked in:
-- **Name:** Make It So 🖖
-- **Three concepts:** Charter, Explore, Engage
-- **Charter:** Rich knowledge transfer document with degrees of freedom
-- **Phase 2 (Engage):** Ralph Wiggum loop, use existing implementation
-
-### What we're figuring out:
-- **Phase 1 (Explore):** How it works for research projects
-- **Phase 1 vs Phase 2 boundary:** Are they separate? Does Phase 1 subsume Phase 2?
-- **The diagnosis problem:** How does the agent debug coupled failures?
+V1 assumed Phase 1 (Explore) was "generate a PRD with options." Testing against a real research project (ADDM) revealed that exploration means **running experiments, diagnosing failures, and iterating on coupled design variables.** This led to the greedy lock-in model.
 
 ---
 
-*Discussion: Jimmy & Bordie 🐕*
-*Date: 2026-02-12*
+## The Three Phases
+
+```
+Charter (knowledge transfer)
+    ↓
+Phase 1: Explore (design the sequential plan)
+    ↓
+Phase 2: Engage (execute with greedy lock-in)
+    ↓
+Product
+```
+
+---
+
+## Phase 0: Charter
+
+### What It Is
+
+A **knowledge transfer document** — everything a brilliant autonomous agent needs to operate without derailing. Not a brief. Not a one-liner. The full spirit of the project.
+
+### Structure
+
+```markdown
+# Charter: [Project Name]
+
+## I. Thesis (WHY — don't change this)
+The core idea. What we're proving/building and why it matters.
+The research contribution or product vision.
+
+## II. Method (HOW — understand deeply before touching)
+### [Component A]
+How it works, why it's designed this way, key invariants.
+
+### [Component B]
+...
+
+### Infrastructure
+How experiments run / how the system works end-to-end.
+Data pipelines, execution flow, costs.
+
+## III. Current State (WHERE we are)
+- Benchmark results / current functionality
+- Known strengths
+- Known weaknesses
+
+## IV. Mission (WHAT to do)
+The specific goal for this run.
+
+## V. Degrees of Freedom (WHAT can change)
+### CANNOT change (foundational)
+Core architecture, thesis, fundamental concepts.
+
+### CAN change (with caution, must not regress)
+Parameters, thresholds, calibration, component internals.
+
+### SHOULD change (likely needed for this mission)
+Domain-specific hardcoding, known limitations.
+
+### FREE to change
+Implementation details, prompts, experiment parameters.
+```
+
+### Key Properties
+
+- **Same structure whether building from scratch or extending.** For greenfield: Section III is empty. For extension: Section III has the baseline to protect.
+- **Section V (Degrees of Freedom) is the core innovation.** It's a permission system for the agent — like constitutional law where fundamental rights need supermajority but regulations can change freely.
+- **The charter IS the constitution.** It persists across all phases as the guardrail.
+
+### Example: ADDM Amazon Expansion
+
+```markdown
+## I. Thesis
+AMOS (Agenda-driven Method for Opinion Summarization) proves 
+that structured agenda-driven retrieval outperforms naive 
+baselines at judging entity attributes from reviews.
+
+## II. Method
+### Agenda Spec
+[Full explanation: structure, version history v1→v7, 
+ what makes a good agenda, verdict rules, term definitions]
+
+### Ground Truth Generation
+[How derived from agendas, LLM judgment process, 
+ aggregation, human overrides, cost per recalculation]
+
+### AMOS Phase 1: ASC (Agenda Spec Compiler)
+[How arbitrary queries → agenda spec, generalization 
+ mechanism, what's hardcoded vs flexible]
+
+### AMOS Phase 2: Tekoa
+[Retrieval gates, LLM verification calibration, 
+ skip logic, verdict aggregation]
+
+### Baselines
+[Direct, CoT, etc. — how each works, what they test]
+
+### Experiment Infrastructure
+[run_experiment pipeline, data flow, how to interpret 
+ results, cost structure]
+
+## III. Current State
+- Yelp: AMOS beats baseline on X/18 topics
+- [Benchmark numbers per topic]
+- Strengths: [...]
+- Weaknesses: [agenda may be Yelp-specific]
+
+## IV. Mission
+Expand to Amazon product reviews while maintaining Yelp performance.
+
+## V. Degrees of Freedom
+### CANNOT change
+- AMOS 2-phase architecture (ASC → Tekoa)
+- Agenda spec concept
+- Evaluation methodology
+- Existing Yelp results must not regress
+
+### CAN change (with caution)
+- Tekoa gate thresholds and calibration
+- ASC prompt templates
+- Agenda format extensions
+
+### SHOULD change
+- Any Yelp-hardcoded logic in ASC
+- Topic definitions for Amazon domain
+- Ground truth for new domain
+
+### FREE to change
+- Internal implementation details
+- Experiment parameters
+- Prompt wording
+```
+
+---
+
+## Phase 1: Explore
+
+### What It Is
+
+Human + Agent **design a sequential plan** with lock-in criteria and dependency rules. The plan defines what to build/explore and in what order.
+
+### The Greedy Lock-In Insight
+
+Don't solve everything at once. Solve step 1, **lock it in**, build on top. If a later step fails, go back to the nearest unlocked dependency — not to the beginning.
+
+### Plan Structure
+
+Each step has:
+- **Goal**: What this step achieves
+- **Lock-in criterion**: How we know it's done (measurable)
+- **Failure diagnosis**: If this fails, what might be wrong?
+- **Fallback rules**: What to revisit if this step fails
+- **Frozen dependencies**: What prior steps are locked and must not change
+
+### Example: ADDM from Scratch
+
+```
+PART 1: MVP
+
+Step 1: Find agendas where baseline fails
+  Lock-in: ≥3 agenda topics where direct baseline < 70% accuracy
+  Failure: try different agenda questions, different topics
+  Frozen: nothing yet
+
+Step 2: Systemize agenda format (v1 → v7 evolution)
+  Lock-in: structured format handles all Step 1 agendas
+  Verify: baseline still fails on these agendas
+  Failure: format too rigid → adjust format, re-verify Step 1
+  Frozen: Step 1 topic choices (but agenda wording can adjust)
+
+Step 3: AMOS Phase 1 (ASC) works for systemized format
+  Lock-in: ASC produces consistent agenda spec across all formats
+  Failure: ASC prompt needs work → adjust ASC, don't touch format
+  Frozen: Steps 1-2 (agenda format locked)
+
+Step 4: AMOS Phase 2 (Tekoa) outperforms baselines
+  Lock-in: AMOS > baseline on all Step 1 topics
+  Failure: gates too aggressive → adjust Tekoa calibration
+  Fallback: if Tekoa fundamentally can't work → revisit Step 3
+  Frozen: Steps 1-2 (but Step 3 can be revisited)
+
+PART 2: EXPAND
+
+Step 5: Full agenda pipeline (policy → prompt, policy + context → ground truth)
+  Lock-in: pipeline runs end-to-end for any topic
+  Frozen: Steps 1-4
+
+Step 6: For each topic T in [allergy, noise, parking, ...]:
+  Step 6.T.1: Design agenda for T (verdict rule, term definitions)
+  Step 6.T.2: Verify baseline fails on T
+  Step 6.T.3: Verify AMOS works on T
+  Lock-in: AMOS > baseline on topic T
+  Failure: adjust agenda for T, don't touch other topics
+  Frozen: Steps 1-5, other topics
+```
+
+### Key Properties
+
+- **Sequential with dependencies.** Each step builds on locked-in prior steps.
+- **Failure cascades are bounded.** Step 4 failing can revisit Step 3, but NOT Steps 1-2.
+- **Loops get flattened.** "For each topic" becomes explicit steps per topic. This makes it Ralph-compatible.
+- **Human involvement is in designing the plan**, not executing it. The agent proposes steps, human approves/adjusts the sequence and lock-in criteria.
+
+### How Phase 1 Works (The Conversation)
+
+```
+Agent reads charter
+    ↓
+Agent proposes sequential plan
+    ↓
+Human: "Step 2 and 3 should swap" / "Add a step for X"
+    ↓
+Agent adjusts plan
+    ↓
+Human: "Lock-in criterion for Step 4 is too loose"
+    ↓
+Agent tightens criteria
+    ↓
+Human: "Looks good. Engage."
+    ↓
+Plan locked → Phase 2
+```
+
+---
+
+## Phase 2: Engage
+
+### What It Is
+
+The agent **executes the plan** step by step. Each step runs as a Ralph-style loop until its lock-in criterion is met.
+
+### Execution Model
+
+```
+for each step in plan:
+    while not step.lock_in_criterion_met():
+        # Ralph-style iteration
+        spawn fresh agent context
+        feed: charter + plan + current step + progress
+        agent works on current step
+        run verification (experiments, tests, etc.)
+        
+        if step.lock_in_criterion_met():
+            lock step → move to next
+        elif step.failure_diagnosed():
+            check fallback rules:
+                if can_fix_current_step(): continue
+                if must_revisit_prior(): unlock that step, go back
+                if fundamental_failure(): alert human
+        
+        update progress.txt
+```
+
+### Greedy Lock-In Rules
+
+1. **Forward progress is default.** Complete step, lock it, move on.
+2. **Fallback is bounded.** Can only revisit what the plan's fallback rules allow.
+3. **Frozen means frozen.** Locked steps with no fallback pointing to them cannot change.
+4. **Human escalation.** If the agent is stuck (looping on same step > N iterations), alert human.
+5. **Regression check.** After any fallback, re-verify all downstream locked steps.
+
+### Flattening Dynamic Elements
+
+"For each topic" in the plan becomes a flat story list for Ralph:
+
+```json
+{
+  "userStories": [
+    {"id": "S6-allergy-1", "title": "Design agenda for allergy topic", ...},
+    {"id": "S6-allergy-2", "title": "Verify baseline fails on allergy", ...},
+    {"id": "S6-allergy-3", "title": "Verify AMOS works on allergy", ...},
+    {"id": "S6-noise-1", "title": "Design agenda for noise topic", ...},
+    ...
+  ]
+}
+```
+
+This keeps Phase 2 compatible with Ralph's existing flat-story implementation.
+
+---
+
+## Full Flow Summary
+
+```
+Human thoughts
+    ↓
+Phase 0: Charter
+    Human + Agent create knowledge transfer document
+    Output: charter/ (thesis, method, state, mission, degrees of freedom)
+    ↓
+Phase 1: Explore  
+    Human + Agent design sequential plan with lock-in criteria
+    Agent proposes, human approves/adjusts
+    Output: plan.json (steps, lock-in criteria, fallback rules, frozen deps)
+    ↓
+Phase 2: Engage
+    Agent executes plan step-by-step
+    Each step = Ralph loop until lock-in
+    Greedy: lock and move forward
+    Fallback: bounded by plan's rules
+    Output: product
+```
+
+### CLI
+
+```bash
+makeitso charter              # Phase 0: create/edit charter
+makeitso explore              # Phase 1: design the plan
+makeitso engage               # Phase 2: execute with greedy lock-in
+makeitso engage --step 3      # Resume from step 3
+makeitso status               # Show plan progress + lock-in state
+```
+
+---
+
+## What Makes This Different
+
+| Framework | Planning | Execution | Failure Handling |
+|-----------|----------|-----------|-----------------|
+| Vibe coding | None | One-shot | Start over |
+| Ralph | Human writes PRD | Loop until done | Retry same story |
+| BMAD | Multi-agent planning | Agent codes | No structured fallback |
+| Spec Kit | 4-phase gated | Agent codes | Human reviews each gate |
+| **Make It So** | **Charter + sequential plan with lock-in** | **Step-by-step Ralph loops** | **Bounded fallback + regression check** |
+
+The key innovations:
+1. **Charter as knowledge transfer** (not a brief)
+2. **Degrees of freedom** (permission system for what agent can change)
+3. **Greedy lock-in** (solve → lock → build on top)
+4. **Bounded fallback** (failure can only cascade to specified prior steps)
+5. **Plan-aware execution** (Ralph loop per step, not one flat PRD)
+
+---
+
+## Prior Art
+
+- **Ralph Wiggum Loop** — Phase 2 execution model. We use it directly.
+- **BMAD Method** — Multi-agent planning is closest to Phase 1, but no lock-in or fallback structure.
+- **GitHub Spec Kit** — 4-phase gated process, but gates are human-reviewed, not criterion-based.
+- **Anthropic Constitutional AI** — Inspiration for charter as persistent constraint.
+- **Scientific method** — Phase 2's observe → diagnose → hypothesize → act → validate loop.
+- **Greedy algorithms** — Lock-in the best local solution, build on it.
+
+---
+
+*Authors: Jimmy & Bordie 🐕*
+*Created: 2026-02-12*
